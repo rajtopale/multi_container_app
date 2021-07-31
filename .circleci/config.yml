@@ -46,11 +46,9 @@ jobs:
     docker:
       - image: cimg/base:2021.07
     steps:
-      - attach_workspace:
-          at: .
       - aws-cli/setup
       - run: |
-          TAG=$(<version.txt)
+          TAG=0.1.9
           mkdir eb_bucket
           cat \<<EOF > eb_bucket/dockercfg
           {
@@ -63,54 +61,31 @@ jobs:
           EOF
           cat \<<EOF > eb_bucket/$TAG-Dockerrun.aws.json 
           {
-            "AWSEBDockerrunVersion": 2,
+            "AWSEBDockerrunVersion": "3",
             "Authentication": {
               "bucket": "$BUCKET_NAME",
               "key": "docker-react/dockercfg"
-            },
-            "containerDefinitions": [
-              {
-                "name": "client",
-                "image": "$CLIENT_IMAGE_NAME:$TAG",
-                "hostname": "client",
-                "essential": false,
-                "memory": 128
-              },
-              {
-                "name": "api-server",
-                "image": "$SERVER_IMAGE_NAME:$TAG",
-                "hostname": "api-server",
-                "essential": false,
-                "memory": 128
-              },
-              {
-                "name": "worker",
-                "image": "$WORKER_IMAGE_NAME:$TAG",
-                "hostname": "worker",
-                "essential": false,
-                "memory": 128
-              },
-              {
-                "name": "nginx-proxy",
-                "image": "$NGINX_IMAGE_NAME:$TAG",
-                "essential": true,
-                "memory": 128,
-                "portMappings": [
-                  {
-                    "hostPort": 80,
-                    "containerPort": 80
-                  }
-                ],
-                "links": [
-                  "client",
-                  "server"
-                ]
-              }
-            ]
+            }
           }
           EOF
+          cat \<<EOF > eb_bucket/docker-compose.yml
+          version: "3"
+          services:
+            api-server:
+              image: "$SERVER_IMAGE_NAME:$TAG"
+            client:
+              image: "$CLIENT_IMAGE_NAME:$TAG"
+            worker:
+              image: "$WORKER_IMAGE_NAME:$TAG"
+            nginx:
+              image: "$NGINX_IMAGE_NAME:$TAG"
+              restart: always
+              ports:
+                - "80:80"
+          EOF
+          zip eb_bucket/eb.zip eb_bucket/docker-compose.yml eb_bucket/$TAG-Dockerrun.aws.json 
           aws s3 cp eb_bucket/ s3://$BUCKET_NAME/docker-react --recursive
-          aws elasticbeanstalk create-application-version --application-name multi-docker --version-label multi-docker-$TAG --source-bundle S3Bucket=$BUCKET_NAME,S3Key=docker-react/$TAG-Dockerrun.aws.json
+          aws elasticbeanstalk create-application-version --application-name multi-docker --version-label multi-docker-$TAG --source-bundle S3Bucket=$BUCKET_NAME,S3Key=docker-react/eb.zip
           aws elasticbeanstalk update-environment --environment-name Multidocker-env --version-label multi-docker-$TAG 
 
 
@@ -119,18 +94,12 @@ workflows:
   elastic-beanstalk-workflow:
     jobs:
       - shellcheck/check
-      - build:
-          context: docker
-          requires:
-            - shellcheck/check
+      - eb-deploy:
+          context: AWS
           filters:
             branches:
               only:
                 - master
-      - eb-deploy:
-          context: AWS
-          requires:
-            - build
           
 
 
