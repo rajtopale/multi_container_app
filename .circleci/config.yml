@@ -23,11 +23,11 @@ jobs:
           version: 20.10.6
       - run: |
           TAG=0.1.$CIRCLE_BUILD_NUM
+          echo $DOCKER_PASS | docker login registry.gitlab.com -u $DOCKER_USER --password-stdin
           docker build -t $CLIENT_IMAGE_NAME:$TAG ./client
           docker build -t $NGINX_IMAGE_NAME:$TAG ./nginx
           docker build -t $SERVER_IMAGE_NAME:$TAG ./server
           docker build -t $WORKER_IMAGE_NAME:$TAG ./worker
-          echo $DOCKER_PASS | docker login registry.gitlab.com -u $DOCKER_USER --password-stdin
           docker push $CLIENT_IMAGE_NAME:$TAG
           docker push $NGINX_IMAGE_NAME:$TAG
           docker push $SERVER_IMAGE_NAME:$TAG
@@ -73,24 +73,28 @@ jobs:
                 "name": "client",
                 "image": "$CLIENT_IMAGE_NAME:$TAG",
                 "hostname": "client",
-                "essential": false
+                "essential": false,
+                "memory": 128
               },
               {
                 "name": "api-server",
                 "image": "$SERVER_IMAGE_NAME:$TAG",
                 "hostname": "api-server",
-                "essential": false
+                "essential": false,
+                "memory": 128
               },
               {
                 "name": "worker",
                 "image": "$WORKER_IMAGE_NAME:$TAG",
                 "hostname": "worker",
-                "essential": false
+                "essential": false,
+                "memory": 128
               },
               {
                 "name": "nginx-proxy",
                 "image": "$NGINX_IMAGE_NAME:$TAG",
                 "essential": true,
+                "memory": 128,
                 "portMappings": [
                   {
                     "hostPort": 80,
@@ -116,6 +120,7 @@ workflows:
     jobs:
       - shellcheck/check
       - build:
+          context: docker
           requires:
             - shellcheck/check
           filters:
