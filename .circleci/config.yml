@@ -59,7 +59,7 @@ jobs:
             }
           }
           EOF
-          cat \<<EOF > eb_bucket/$TAG-Dockerrun.aws.json 
+          cat \<<EOF > eb_bucket/Dockerrun.aws.json 
           {
             "AWSEBDockerrunVersion": "3",
             "Authentication": {
@@ -83,7 +83,7 @@ jobs:
               ports:
                 - "80:80"
           EOF
-          zip eb_bucket/eb.zip eb_bucket/docker-compose.yml eb_bucket/$TAG-Dockerrun.aws.json 
+          zip eb_bucket/eb.zip eb_bucket/docker-compose.yml eb_bucket/Dockerrun.aws.json 
           aws s3 cp eb_bucket/ s3://$BUCKET_NAME/docker-react --recursive
           aws elasticbeanstalk create-application-version --application-name multi-docker --version-label multi-docker-$TAG --source-bundle S3Bucket=$BUCKET_NAME,S3Key=docker-react/eb.zip
           aws elasticbeanstalk update-environment --environment-name Multidocker-env --version-label multi-docker-$TAG 
