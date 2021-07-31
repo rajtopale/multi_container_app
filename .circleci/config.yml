@@ -7,7 +7,10 @@ orbs:
 jobs:
   build:
     environment:
-      IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/docker-react
+      CLIENT_IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/multi-client
+      NGINX_IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/multi-nginx
+      SERVER_IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/multi-server
+      WORKER_IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/multi-worker
       BUCKET_NAME: elasticbeanstalk-us-east-1-544475008658
     docker:
       - image: cimg/base:2021.07
@@ -20,17 +23,26 @@ jobs:
           version: 20.10.6
       - run: |
           TAG=0.1.$CIRCLE_BUILD_NUM
-          docker build -t $IMAGE_NAME:$TAG -f Dockerfile.dev .
+          docker build -t $CLIENT_IMAGE_NAME:$TAG ./client
+          docker build -t $NGINX_IMAGE_NAME:$TAG ./nginx
+          docker build -t $SERVER_IMAGE_NAME:$TAG ./server
+          docker build -t $WORKER_IMAGE_NAME:$TAG ./worker
           echo $DOCKER_PASS | docker login registry.gitlab.com -u $DOCKER_USER --password-stdin
-          docker push $IMAGE_NAME:$TAG
+          docker build $CLIENT_IMAGE_NAME:$TAG
+          docker build $NGINX_IMAGE_NAME:$TAG
+          docker build $SERVER_IMAGE_NAME:$TAG
+          docker build $WORKER_IMAGE_NAME:$TAG
       - persist_to_workspace:
           root: .
           paths:
             - .
   eb-deploy:
     environment:
+      CLIENT_IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/multi-client
+      NGINX_IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/multi-nginx
+      SERVER_IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/multi-server
+      WORKER_IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/multi-worker
       BUCKET_NAME: elasticbeanstalk-us-east-1-544475008658
-      IMAGE_NAME: registry.gitlab.com/rajtopale/docker_registry/docker-react
     docker:
       - image: cimg/base:2021.07
     steps:
@@ -51,17 +63,44 @@ jobs:
           EOF
           cat \<<EOF > eb_bucket/$TAG-Dockerrun.aws.json 
           {
-            "AWSEBDockerrunVersion": "1",
+            "AWSEBDockerrunVersion": 2,
             "Authentication": {
               "bucket": "$BUCKET_NAME",
               "key": "docker-react/dockercfg"
             },
-            "Image": {
-              "Name": "$IMAGE_NAME:$TAG"
-            },
-            "Ports": [
+            "containerDefinitions": [
               {
-                "ContainerPort": "3000"
+                "name": "client",
+                "image": "$CLIENT_IMAGE_NAME:$TAG",
+                "hostname": "client",
+                "essential": false
+              },
+              {
+                "name": "api-server",
+                "image": "$SERVER_IMAGE_NAME:$TAG",
+                "hostname": "api-server",
+                "essential": false
+              },
+              {
+                "name": "worker",
+                "image": "$WORKER_IMAGE_NAME:$TAG",
+                "hostname": "worker",
+                "essential": false
+              },
+              {
+                "name": "nginx-proxy",
+                "image": "$NGINX_IMAGE_NAME:$TAG",
+                "essential": true,
+                "portMappings": [
+                  {
+                    "hostPort": 80,
+                    "containerPort": 80
+                  }
+                ],
+                "links": [
+                  "client",
+                  "server"
+                ]
               }
             ]
           }
