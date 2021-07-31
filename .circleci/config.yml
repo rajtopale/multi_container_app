@@ -28,10 +28,10 @@ jobs:
           docker build -t $SERVER_IMAGE_NAME:$TAG ./server
           docker build -t $WORKER_IMAGE_NAME:$TAG ./worker
           echo $DOCKER_PASS | docker login registry.gitlab.com -u $DOCKER_USER --password-stdin
-          docker build $CLIENT_IMAGE_NAME:$TAG
-          docker build $NGINX_IMAGE_NAME:$TAG
-          docker build $SERVER_IMAGE_NAME:$TAG
-          docker build $WORKER_IMAGE_NAME:$TAG
+          docker push $CLIENT_IMAGE_NAME:$TAG
+          docker push $NGINX_IMAGE_NAME:$TAG
+          docker push $SERVER_IMAGE_NAME:$TAG
+          docker push $WORKER_IMAGE_NAME:$TAG
       - persist_to_workspace:
           root: .
           paths:
